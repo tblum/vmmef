@@ -16,8 +16,12 @@ class SRSRawFile
 {
 private:
     std::ifstream file;
+    char* buffer;
+    size_t bufferSize;
 public:
     SRSRawFile(std::string fileName);
+    ~SRSRawFile ();
+    SRSRawFile (char *buffer);
     FECEvent getNextFECEvent();
 };
 

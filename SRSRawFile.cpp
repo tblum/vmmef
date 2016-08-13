@@ -5,12 +5,17 @@
 #include <iostream>
 #include "SRSRawFile.h"
 
-#define BUF_SIZE 1024*1024
-
 SRSRawFile::SRSRawFile(std::string fileName)
+        : buffer(NULL)
+        , bufferSize(0)
 {
     file.exceptions(std::ifstream::failbit | std::ifstream::badbit | std::ifstream::eofbit);
     file.open(fileName, std::ios::in|std::ios::binary);
+}
+
+SRSRawFile::~SRSRawFile ()
+{
+    delete[] buffer;
 }
 
 FECEvent SRSRawFile::getNextFECEvent()
@@ -23,10 +28,13 @@ FECEvent SRSRawFile::getNextFECEvent()
             break;
     }
     size_t eventSize = eventHeader.eventSize - sizeof(eventHeader);
-    char event[eventSize*sizeof(u_int32_t)];
-    file.read(event,eventSize);
-    return FECEvent(event,eventSize);
+    if (buffer == NULL || bufferSize < eventSize*sizeof(u_int32_t))
+    {
+        delete[] buffer;
+        bufferSize = eventSize * sizeof(u_int32_t);
+        buffer = new char[bufferSize];
+    }
+
+    file.read(buffer,eventSize);
+    return FECEvent(buffer,eventSize);
 }
-
-
-
