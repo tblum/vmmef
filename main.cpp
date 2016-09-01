@@ -14,13 +14,19 @@ int main(int argc, char** argv)
     try
     {
         TCLAP::CmdLine cmd("Event formation proto type for the VMM3", ' ', "0.001");
-        TCLAP::ValueArg<std::string> fileName_("f","file","Name of raw data file",true,"stdin","string",cmd);
+        TCLAP::ValueArg<std::string> fileName_("f","file","Name of raw data file",true,"stdin","filename",cmd);
         TCLAP::ValueArg<int> numEvents_("n","nevent","Number of events to read from tile",false,-1,"int",cmd);
         TCLAP::SwitchArg pedistal_("p","pedistal","Calculate pedistal", cmd, false);
+        TCLAP::ValueArg<std::string> gnuPlot_("g","gnuplot","Output GNU-plot histogram data",false,"histogram","basename",cmd);
         cmd.parse(argc, argv);
         std::string fileName = fileName_.getValue();
         bool pedistal = pedistal_.getValue();
         int numEvents = numEvents_.getValue();
+        bool gnuplot = false;
+        if (gnuPlot_.isSet())
+        {
+            gnuplot = true;
+        }
         SRSRawFile file(fileName);
         H5::H5File H5file("result.h5", H5F_ACC_TRUNC );
         Pedestal *pedestals[DAQ_CHANNELS];
@@ -52,15 +58,24 @@ int main(int argc, char** argv)
             if (numEvents > 0 && i > numEvents)
                 break;
         }
-        if (pedistal)
+        if (gnuplot)
         {
-            for (unsigned char c = 0; c < DAQ_CHANNELS; ++c)
+            std::string basename = gnuPlot_.getValue();
+            std::ofstream gpFile;
+            gpFile.open(basename + ".gp");
+            for (int c = 0; c < DAQ_CHANNELS; ++c)
             {
-                std::cout << "Pedestal DAQ" << (int)c << std::endl;
-                //std::cout << *pedestals[c] << std::endl;
-                pedestals[c]->printStats(std::cout);
-                std::cout << std::endl;
+                std::ofstream dataFile;
+                std::string dataFileName = basename + std::to_string(c) + ".data";
+                dataFile.open (dataFileName);
+                dataFile << "# Pedestal DAQ" << (int)c << std::endl;
+                pedestals[c]->printGPdata(dataFile);
+                dataFile << std::endl;
+                dataFile.close();
+                pedestals[c]->printGPscript(gpFile,dataFileName,4.0);
             }
+            gpFile << std::endl;
+            gpFile.close();
         }
         if (pedistal)
         {
