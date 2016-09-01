@@ -2,6 +2,8 @@
 #include <tclap/CmdLine.h>
 #include "SRSRawFile.h"
 #include "event.h"
+#include "Pedestal.h"
+
 
 int main(int argc, char** argv)
 {
@@ -12,29 +14,63 @@ int main(int argc, char** argv)
     try
     {
         TCLAP::CmdLine cmd("Event formation proto type for the VMM3", ' ', "0.001");
-        TCLAP::ValueArg<std::string> fileName_("f","file","Name of raw data file",true,"stdin","string");
-        cmd.add(fileName_);
+        TCLAP::ValueArg<std::string> fileName_("f","file","Name of raw data file",true,"stdin","string",cmd);
+        TCLAP::ValueArg<int> numEvents_("n","nevent","Number of events to read from tile",false,-1,"int",cmd);
+        TCLAP::SwitchArg pedistal_("p","pedistal","Calculate pedistal", cmd, false);
         cmd.parse(argc, argv);
         std::string fileName = fileName_.getValue();
+        bool pedistal = pedistal_.getValue();
+        int numEvents = numEvents_.getValue();
         SRSRawFile file(fileName);
+        H5::H5File H5file("result.h5", H5F_ACC_TRUNC );
+        Pedestal *pedestals[DAQ_CHANNELS];
+        if (pedistal)
+        {
+            for (unsigned char c = 0; c < DAQ_CHANNELS; ++c)
+            {
+                pedestals[c] = new Pedestal();
+            }
+        }
         int i = 0;
-        while(true)
+        while(++i)
         {
             try
             {
                 FECEvent event = file.getNextFECEvent();
-                std::cout << "FEC ID:" << event.getID() << std::endl;
-                event.generateImages();
-                std::cout << std::endl;
+                if (pedistal)
+                {
+                    event.addToPedistals(pedestals);
+                } else {
+                    event.WriteToHDF5(H5file);
+                }
             }
             catch (const std::exception& e) // TODO only catch EOF
             {
                 std::cout << "EOF: " << e.what() << std::endl;
-                return 0;
+                break;
             }
-            if (++i > 0)
+            if (numEvents > 0 && i > numEvents)
                 break;
         }
+        if (pedistal)
+        {
+            for (unsigned char c = 0; c < DAQ_CHANNELS; ++c)
+            {
+                std::cout << "Pedestal DAQ" << (int)c << std::endl;
+                //std::cout << *pedestals[c] << std::endl;
+                pedestals[c]->printStats(std::cout);
+                std::cout << std::endl;
+            }
+        }
+        if (pedistal)
+        {
+            for (unsigned char c = 0; c < DAQ_CHANNELS; ++c)
+            {
+                delete pedestals[c];
+            }
+        }
+        std::cout << "Processed " << i << " events." << std::endl;
+
     }
     catch (TCLAP::ArgException &e)
     {
@@ -44,6 +80,5 @@ int main(int argc, char** argv)
     {
         std::cerr << "error: " << e.what() << std::endl;
     }
-
     return 0;
 }

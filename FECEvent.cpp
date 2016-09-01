@@ -4,20 +4,12 @@
 
 #include <cstddef>
 #include <assert.h>
-#include <H5Cpp.h>
 #include <iostream>
 #include <vector>
+#include <string>
 #include "FECEvent.h"
 #include "ADCiterator.h"
 
-#define APV_ONE(x)  ((x) < 1200)
-#define APV_ZERO(x) ((x) > 3000)
-
-#define APV_ADDRESS_BITS 8
-#define APV_HEADER_BITS 12
-#define APV_CHANELS 128
-#define DAQ_CHANELS 4
-#define SRS_HEADER_SIZE 3
 
 FECEvent::FECEvent(char _data[], size_t eventSize)
         : header((uint32_t*)_data)
@@ -29,23 +21,28 @@ FECEvent::FECEvent(char _data[], size_t eventSize)
     assert(size == header[0]);
 }
 
-void FECEvent::WriteHDF5(std::string fileName)
+static int eid = 0;
+void FECEvent::WriteToHDF5(H5::H5File file)
 {
-    generateImages();
+    Images img = generateImages();
     try
     {
-        H5::H5File file(fileName, H5F_ACC_TRUNC );
-
+        const hsize_t dims[3] = {2, IMG_HEIGHT, IMG_WIDTH};
+        H5::DataSpace dataspace( 3,  dims);
+        H5::IntType datatype( H5::PredType::NATIVE_UINT16 );
+        datatype.setOrder( H5T_ORDER_LE );
+        H5::DataSet dataset = file.createDataSet(std::to_string(eid++), datatype, dataspace );
+        dataset.write( img.data, H5::PredType::NATIVE_UINT16 );
     }
-   catch(H5::Exception e)
-   {
-       std::cerr << e.getDetailMsg() << std::endl;
-       throw e;
-   }
+    catch(H5::Exception e)
+    {
+        std::cerr << e.getDetailMsg() << std::endl;
+        throw e;
+    }
 }
 
-
-void FECEvent::writeToImage (const ADCiterator& begin, const ADCiterator& end, size_t offset, Image& image)
+// Return iterator pointing to the first true data entry
+ADCiterator FECEvent::findData(const ADCiterator& begin, const ADCiterator& end) const
 {
     int header = 0;
     ADCiterator it(begin);
@@ -58,20 +55,25 @@ void FECEvent::writeToImage (const ADCiterator& begin, const ADCiterator& end, s
             break; //We found the header
         }
     }
-
     assert(it != end); //Make sure we found the header
-    assert(it + (IMG_HEIGHT*(APV_CHANELS+APV_HEADER_BITS) - APV_HEADER_BITS) < end); //Make sure we don't overrun
+    return it;
+}
+
+void FECEvent::writeToImage(const ADCiterator& begin, const ADCiterator& end, size_t offset, uint16_t image[IMG_HEIGHT][IMG_WIDTH])
+{
+    ADCiterator it = findData(begin, end);
+    assert(it + (IMG_HEIGHT*(APV_CHANNELS+APV_HEADER_BITS) - APV_HEADER_BITS) < end); //Make sure we don't overrun
     for (size_t i = 0; i < IMG_HEIGHT; ++i)
     {
-        for (size_t j = offset; j < offset+APV_CHANELS; ++j)
+        for (size_t j = offset; j < offset+APV_CHANNELS; ++j)
         {
-            image[j] = UINT16_MAX - *it++;
+            image[i][j] = APV_MAX_VALUE - (*it++);
         }
         it += APV_HEADER_BITS;
     }
 }
 
-inline size_t apvSize(const u_int32_t* data, char channel)
+inline size_t apvSize(const u_int32_t* data, unsigned char channel)
 {
     uint32_t adc = data[1];
     assert (adc == (u_int32_t)(0x41444300+channel)); // 'ADC_'+#C
@@ -80,21 +82,34 @@ inline size_t apvSize(const u_int32_t* data, char channel)
     return size;
 }
 
-void FECEvent::generateImages ()
+FECEvent::Images FECEvent::generateImages()
 {
-    if (imagesGenerated)
-    {
-        return;
-    }
+    Images img;
     const u_int32_t* ptr = data;
-    for (char c = 0; c < DAQ_CHANELS; ++c)
+    for (char c = 0; c < DAQ_CHANNELS; ++c)
     {
         size_t size = apvSize(ptr, c);
         ptr += SRS_HEADER_SIZE;
         ADCiterator begin(ptr);
         ADCiterator end = begin + size;
-        writeToImage(begin, end, 0, imageX);
-        assert (size == 4000);
+        writeToImage(begin, end, c%2==0?0:APV_CHANNELS, c<2?img.proj.x:img.proj.y);
         ptr += size/2; // since the size is in 16 bit words
     }
+    return img;
+}
+
+void FECEvent::addToPedistals (Pedestal* pedestal[DAQ_CHANNELS])
+{
+    const u_int32_t* ptr = data;
+    for (unsigned char c = 0; c < DAQ_CHANNELS; ++c)
+    {
+        size_t size = apvSize(ptr, c);
+        ptr += SRS_HEADER_SIZE;
+        ADCiterator begin(ptr);
+        ADCiterator end = begin + size;
+        ADCiterator it = findData(begin, end);
+        pedestal[c]->add(it);
+        ptr += size/2; // since the size is in 16 bit words
+    }
+
 }

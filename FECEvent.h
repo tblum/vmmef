@@ -5,35 +5,56 @@
 #ifndef VMMEF_FECEVENT_H
 #define VMMEF_FECEVENT_H
 
+#define APV_CHANNELS 128
+#define APV_MAX_VALUE (1<<12)
+#define APV_TIME_BINS 27
+#define APV_ADDRESS_BITS 8
+#define APV_HEADER_BITS 12
+
+#define DAQ_CHANNELS 4
+#define SRS_HEADER_SIZE 3
+
+#define IMG_HEIGHT (APV_TIME_BINS)
+#define IMG_WIDTH (APV_CHANNELS*2)
+
+#define APV_ONE(x)  ((x) < 1200)
+#define APV_ZERO(x) ((x) > 3000)
 
 #include <cstdint>
 #include <string>
 #include <array>
+#include <H5Cpp.h>
+
 #include "ADCiterator.h"
-
-#define IMG_HEIGHT 27
-#define IMG_WIDTH 256
+#include "Pedestal.h"
 
 
+class Pedestal;
 class FECEvent
 {
-    typedef std::array<uint16_t,IMG_HEIGHT*IMG_WIDTH> Image;
 private:
     const uint32_t* const header;
     const uint32_t* const data;
     const uint32_t size;
     const uint32_t id;
     bool imagesGenerated;
-    Image imageX;
-    Image imageY;
-    void writeToImage (const ADCiterator &begin, const ADCiterator &end, size_t offset, Image& image);
+    union Images
+    {
+        struct
+        {
+            uint16_t x[IMG_HEIGHT][IMG_WIDTH];
+            uint16_t y[IMG_HEIGHT][IMG_WIDTH];
+        }proj;
+        uint16_t data [2][IMG_HEIGHT][IMG_WIDTH];
+    };
+    ADCiterator findData(const ADCiterator& begin, const ADCiterator& end) const;
+    void writeToImage (const ADCiterator& begin, const ADCiterator& end, size_t offset, uint16_t image[IMG_HEIGHT][IMG_WIDTH]);
 public:
     FECEvent(char data[], size_t eventSize);
-    FECEvent (const std::vector<uint16_t> &image);
-    void generateImages();
+    Images generateImages();
     uint32_t getID() {return id;}
-    void WriteHDF5(std::string fileName);
-
+    void WriteToHDF5(H5::H5File file);
+    void addToPedistals(Pedestal* pedistal[DAQ_CHANNELS]);
 
 };
 
