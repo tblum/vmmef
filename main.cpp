@@ -72,7 +72,7 @@ int main(int argc, char** argv)
                 pedestals[c]->printGPdata(dataFile);
                 dataFile << std::endl;
                 dataFile.close();
-                pedestals[c]->printGPscript(gpFile,dataFileName,4.0);
+                pedestals[c]->printGPscript(gpFile,dataFileName,-2.1,6.1);
             }
             gpFile << std::endl;
             gpFile.close();
