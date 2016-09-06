@@ -1,17 +1,18 @@
 //
 // Created by troels on 9/6/16.
 //
+
 #include <math.h>
 #include <stddef.h>
 #include "lmdg.h"
 
-double inline g(double i, double x, double m, double sd)
+static inline double g(double i, double x, double m, double sd)
 {
     double xm = x*m; double sd2 = 2*sd;
     return (i/(sd*sqrt(2*M_PI)))*exp(-(xm*xm)/(sd2*sd2));
 }
 
-void lmdg_evaluate(const double par[DG_PAR], // function parameters: mu1, sd1, mu2, sd2
+void lmdg_eval(const double par[DG_PAR], // function parameters: mu1, sd1, mu2, sd2
                    const int n_dat,          // Size of fvec: Number of datapoints
                    const void* _data,         // {ig,x,y[]}
                    double* fvec,             // result vector
