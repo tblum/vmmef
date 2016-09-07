@@ -6,6 +6,7 @@
 #include <cmath>
 #include <vector>
 #include <cstring>
+#include <iostream>
 #include "Pedestal.h"
 
 #define HIST(C,V) histogram[(C)*(APV_MAX_VALUE) + (V)]
@@ -108,27 +109,35 @@ void Pedestal::printGPscript (std::ostream &os, std::string dataFile, double bsi
 {
     std::string baseName = dataFile.substr(0,dataFile.find_last_of("."));
     os << "# gnuplot script for plotting APV pedestal histograms\n" <<
-       "normal(x, s, mu, sd) = (s/(sd*sqrt(2*pi)))*exp(-(x-mu)**2/(2*sd**2))\n"
+       "normal(x, s, mu, sd) = (s/(sd*sqrt(2*pi)))*exp(-(x-mu)**2/(2*sd**2))\n" <<
+       "normal2(x, s, mu1, sd1, mu2, sd2) = normal(x,s/2,mu1,sd1) + normal(x,s/2,mu2,sd2)\n" <<
        "set style data histogram\n" <<
        "set style histogram cluster gap 1\n" <<
        "set terminal svg size 1200,960 enhanced background rgb \'white\'\n" <<
        "set style fill solid 1.0\n";
     for (size_t c = 0; c < APV_CHANNELS; ++c)
     {
-        Tally t = tally(HISTC(c));
-        double avg = t.sum/t.N;
-        double var = variance(HISTC(c), t);
-        double sigma = std::sqrt(var);
-        Tally t2 = tally(HISTC(c),1024,2048);
-        double avg2 = t.sum/t.N;
-        double var2 = variance(HISTC(c), t,1024,2048);
-        double sigma2 = std::sqrt(var2);
-        os << "set xrange [" << (int)(avg + bsig*sigma) << ":" << (int)(avg + esig*sigma) << "]\n" <<
-           "set xtics " << avg2 << "," << sigma2 << "\n" <<
+        // Stats over the full range
+        Tally tf = tally(HISTC(c));
+        double avgf = tf.sum/tf.N;
+        double varf = variance(HISTC(c), tf);
+        double sigmaf = std::sqrt(varf);
+        // Stats over a reduced range
+        Tally tr = tally(HISTC(c),1024,2048);
+        double avgr = tr.sum/tr.N;
+        double varr = variance(HISTC(c), tr,1024,2048);
+        double sigmar = std::sqrt(varr);
+        // Double gausian curve-fit
+        std::cout << "Double gausian curve-fit " << c << std::endl;
+        DoubleGaussFit dgf(HISTC(c), APV_MAX_VALUE, 0, tf.sum, tf.N, varf);
+        os << "set xrange [" << (int)(avgf + bsig*sigmaf) << ":" << (int)(avgf + esig*sigmaf) << "]\n" <<
+           "set xtics " << avgr << "," << sigmar << "\n" <<
            "set output \'" << baseName << "-" << std::setfill('0') << std::setw(3) << c << std::setfill(' ') << ".svg\'\n" <<
            "plot \"" << dataFile << "\" using " << c+2 << " linecolor rgb \"#888888\",\\\n" <<
-           "\tnormal (x," << t.N << ","  << avg << "," << sigma << ") linecolor rgb \"#AA0000\",\\\n" <<
-           "\tnormal (x," << t2.N << ","  << avg2 << "," << sigma2 << ") linecolor rgb \"#00AA00\"\n";
+           "\tnormal2(x," << tf.N << ","  << dgf.gauss1.mean << "," << dgf.gauss1.sigma << "," <<
+                                             dgf.gauss2.mean << "," << dgf.gauss2.sigma << ") linecolor rgb \"#0000AA\",\\\n" <<
+           "\tnormal(x," << tf.N << ","  << avgf << "," << sigmaf << ") linecolor rgb \"#AA0000\",\\\n" <<
+           "\tnormal(x," << tr.N << ","  << avgr << "," << sigmar << ") linecolor rgb \"#00AA00\"\n";
     }
 }
 

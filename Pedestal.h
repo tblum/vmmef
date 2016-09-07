@@ -6,6 +6,7 @@
 #define VMMEF_PEDISTAL_H
 
 #include "FECEvent.h"
+#include "DoubleGaussFit.h"
 
 #define DG_PARAMETERS 5
 // We ignore data points outside [PED_MIN:PED_MAX[

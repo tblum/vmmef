@@ -1,6 +1,11 @@
 //
 // Created by troels on 9/6/16.
 //
+/*
+ * Levenberg–Marquardt fit of sum of two normal distributions.
+ * Using lmfit: http://apps.jcns.fz-juelich.de/doku/sc/lmfit
+ * Implementation inspired by lmcurve from the same project.
+ */
 
 #ifndef VMMEF_LMDG_H
 #define VMMEF_LMDG_H

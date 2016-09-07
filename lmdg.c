@@ -1,15 +1,19 @@
 //
 // Created by troels on 9/6/16.
 //
+/*
+ * Levenberg–Marquardt fit of sum of two normal distributions.
+ * Using lmfit: http://apps.jcns.fz-juelich.de/doku/sc/lmfit
+ * Implementation inspired by lmcurve from the same project.
+ */
 
 #include <math.h>
 #include <stddef.h>
 #include "lmdg.h"
-
 static inline double g(double i, double x, double m, double sd)
 {
-    double xm = x*m; double sd2 = 2*sd;
-    return (i/(sd*sqrt(2*M_PI)))*exp(-(xm*xm)/(sd2*sd2));
+    double dxm = x-m;
+    return (i/(sd*sqrt(2*M_PI)))*exp(-(dxm*dxm)/(2*sd*sd));
 }
 
 void lmdg_eval(const double par[DG_PAR], // function parameters: mu1, sd1, mu2, sd2
@@ -29,6 +33,6 @@ void lmdg_eval(const double par[DG_PAR], // function parameters: mu1, sd1, mu2, 
     for (int i = 0; i < n_dat; ++i)
     {
         double x = (double)(x0+i);
-        fvec[i] = data->y[i] - (g(ig, x, m1, sd1) + g(ig, x, m2, sd2));
+        fvec[i] = (double)(data->y[i]) - (g(ig, x, m1, sd1) + g(ig, x, m2, sd2));
     }
 }
