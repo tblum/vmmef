@@ -35,7 +35,7 @@ if (HDF5_FOUND)
     set(LINK_LIBS ${LINK_LIBS} ${HDF5_LIBRARIES})
 endif()
 
-set(SOURCE_FILES main.cpp SRSRawFile.cpp SRSRawFile.h FECEvent.cpp FECEvent.h ADCiterator.h Pedestal.cpp Pedestal.h DoubleGaussFit.cpp DoubleGaussFit.h lmdg.h lmdg.c)
+set(SOURCE_FILES main.cpp SRSRawFile.cpp SRSRawFile.h FECEvent.cpp FECEvent.h ADCiterator.h Pedestal.cpp Pedestal.h lmng.h lmng.c vmmef.h)
 
 add_executable(vmmef ${SOURCE_FILES})
 target_link_libraries(vmmef ${LINK_LIBS})

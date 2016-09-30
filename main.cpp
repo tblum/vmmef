@@ -1,9 +1,11 @@
 #include <iostream>
 #include <tclap/CmdLine.h>
 #include "SRSRawFile.h"
+#include "vmmef.h"
 #include "event.h"
 #include "Pedestal.h"
 
+int verbose = 0; // global verbosity level
 
 int main(int argc, char** argv)
 {
@@ -18,10 +20,18 @@ int main(int argc, char** argv)
         TCLAP::ValueArg<int> numEvents_("n","nevent","Number of events to read from tile",false,-1,"int",cmd);
         TCLAP::SwitchArg pedistal_("p","pedistal","Calculate pedistal", cmd, false);
         TCLAP::ValueArg<std::string> gnuPlot_("g","gnuplot","Output GNU-plot histogram data",false,"histogram","basename",cmd);
+        TCLAP::ValueArg<size_t > curves_("b","bell","Number of Gauss/Bell curves to fit",false,3,"int",cmd);
+        TCLAP::ValueArg<int> freeIntegral_("i","free_integral","Integral is a free variable when curve fitting [0=no,1=yes,>1=both]",false,0,"int",cmd);
+        TCLAP::ValueArg<int> verbose_("v","verbose","Level of verbosity [0-1]",false,0,"int",cmd);
         cmd.parse(argc, argv);
         std::string fileName = fileName_.getValue();
         bool pedistal = pedistal_.getValue();
         int numEvents = numEvents_.getValue();
+        size_t curves = curves_.getValue();
+        int fi = freeIntegral_.getValue();
+        bool freeIntegral = fi>0;
+        bool fixedIntegral = (fi==0||fi>1);
+        verbose = verbose_.getValue();
         bool gnuplot = false;
         if (gnuPlot_.isSet())
         {
@@ -72,7 +82,7 @@ int main(int argc, char** argv)
                 pedestals[c]->printGPdata(dataFile);
                 dataFile << std::endl;
                 dataFile.close();
-                pedestals[c]->printGPscript(gpFile,dataFileName,-2.1,6.1);
+                pedestals[c]->printGPscript(gpFile,dataFileName, c, curves, freeIntegral, fixedIntegral);
             }
             gpFile << std::endl;
             gpFile.close();
