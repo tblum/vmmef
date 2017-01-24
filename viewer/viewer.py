@@ -44,6 +44,7 @@ class Display:
     zero = False
     surface = False
     log = False
+    peak = False
     
     def __init__(self, h5file):
         self.figure, self.axes = plt.subplots(2)
@@ -51,6 +52,8 @@ class Display:
         self.axes = np.append(self.axes,[plt.axes([0.85, 0.1, 0.075, 0.8])])
         self.figure.canvas.mpl_connect('key_press_event', self.keyEvent)
         self.h5file = h5file
+        self.ped = self.h5file.pedestal['cut'].copy()
+        self.zero = True
         self.showEvent(0)
         plt.show()
         
@@ -66,6 +69,19 @@ class Display:
             event = np.log(event+1)
             
         self.figure.canvas.set_window_title(str(i).zfill(7))
+
+        if self.peak:
+            plt.rcParams['image.cmap'] = 'gray'
+            shape = np.array(event.shape)
+            shape[1] += 2
+            eb = np.empty(shape)
+            eb[:,1:-1,:] = event
+            eb[:,0,:] = eb[:,1,:]
+            eb[:,-1,:] = eb[:,-2,:]
+            event = (eb[:,1:-1,:] > eb[:,0:-2,:]) & (eb[:,1:-1,:] >= eb[:,2:,:])
+        else:
+            plt.rcParams['image.cmap'] = 'jet'
+
         min = np.min(event)
         max = np.max(event)
         for a in range(len(self.axes)):
@@ -103,6 +119,9 @@ class Display:
         if event.key == 'l':
             self.log = not self.log
             self.showEvent()
+        if event.key == 'p':
+            self.peak = not self.peak
+            self.showEvent()
         if event.key == '+':
             self.ped += 1
             self.showEvent()
@@ -113,6 +132,8 @@ class Display:
 if __name__ == '__main__':
     plt.rcParams['keymap.xscale'] = ''
     plt.rcParams['keymap.yscale'] = ''
+    plt.rcParams['keymap.pan'] = ''
+    
     h5file = H5file(sys.argv[1])
     h5file.readPedestal()
     display = Display(h5file)
