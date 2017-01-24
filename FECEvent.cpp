@@ -6,39 +6,26 @@
 #include <assert.h>
 #include <iostream>
 #include <vector>
-#include <string>
 #include "FECEvent.h"
-#include "ADCiterator.h"
+#include "Histogram.h"
+#include "EventImage.h"
+
+// APV Channel order mapping function
+inline size_t apvChannelNo (size_t n) {return 32*(n%4)+8*(n/4)-31*(n/16);}
+// APV digital header value
+inline bool apvOne(uint16_t v) {return v<1200;}
+inline bool apvZero(uint16_t v) {return v>3000;}
 
 
-FECEvent::FECEvent(char _data[], size_t eventSize)
+FECEvent::FECEvent(char _data[], size_t eventSize, const std::vector<size_t >& _daqMap)
         : header((uint32_t*)_data)
         , data(header+7)
         , size(eventSize)
         , id(header[2])
-        , imagesGenerated(false)
+        , daqMap(_daqMap)
+
 {
     assert(size == header[0]);
-}
-
-static int eid = 0;
-void FECEvent::WriteToHDF5(H5::H5File file)
-{
-    Images img = generateImages();
-    try
-    {
-        const hsize_t dims[3] = {2, IMG_HEIGHT, IMG_WIDTH};
-        H5::DataSpace dataspace( 3,  dims);
-        H5::IntType datatype( H5::PredType::NATIVE_UINT16 );
-        datatype.setOrder( H5T_ORDER_LE );
-        H5::DataSet dataset = file.createDataSet(std::to_string(eid++), datatype, dataspace );
-        dataset.write( img.data, H5::PredType::NATIVE_UINT16 );
-    }
-    catch(H5::Exception e)
-    {
-        std::cerr << e.getDetailMsg() << std::endl;
-        throw e;
-    }
 }
 
 // Return iterator pointing to the first true data entry
@@ -48,10 +35,10 @@ ADCiterator FECEvent::findData(const ADCiterator& begin, const ADCiterator& end)
     ADCiterator it(begin);
     for (; it != end; ++it) // First we look for the header '111'
     {
-        if (((APV_ONE(*it)) ? ++header : header = 0) >= 3)
+        if (((apvOne(*it)) ? ++header : header = 0) >= 3)
         {
             it += APV_ADDRESS_BITS+2; //incr + skip 8 bit address + error bit
-            assert(APV_ONE(*(it-1))); // Error bit should be 1
+            assert(apvOne(*(it-1))); // Error bit should be 1
             break; //We found the header
         }
     }
@@ -59,15 +46,16 @@ ADCiterator FECEvent::findData(const ADCiterator& begin, const ADCiterator& end)
     return it;
 }
 
-void FECEvent::writeToImage(const ADCiterator& begin, const ADCiterator& end, size_t offset, uint16_t image[IMG_HEIGHT][IMG_WIDTH])
+void FECEvent::writeToImage(const ADCiterator& begin, const ADCiterator& end,
+                            size_t offset, uint16_t image[IMG_HEIGHT][IMG_WIDTH]) const
 {
     ADCiterator it = findData(begin, end);
     assert(it + (IMG_HEIGHT*(APV_CHANNELS+APV_HEADER_BITS) - APV_HEADER_BITS) < end); //Make sure we don't overrun
     for (size_t i = 0; i < IMG_HEIGHT; ++i)
     {
-        for (size_t j = offset; j < offset+APV_CHANNELS; ++j)
+        for (size_t j = 0; j < APV_CHANNELS; ++j)
         {
-            image[i][j] = APV_MAX_VALUE - (*it++);
+            image[i][apvChannelNo(j)+offset] = APV_MAX_VALUE - (*it++);
         }
         it += APV_HEADER_BITS;
     }
@@ -82,33 +70,48 @@ inline size_t apvSize(const u_int32_t* data, unsigned char channel)
     return size;
 }
 
-FECEvent::Images FECEvent::generateImages()
+// Mapping between DAQ & Channel <-> Image & Offset/Column
+inline size_t imgNo(size_t daq) {return daq < 2 ? 0 : 1;}
+inline size_t imgOffset(size_t daq) {return daq%2==0?0:APV_CHANNELS;}
+
+EventImage FECEvent::generateImage() const
 {
-    Images img;
+    EventImage img;
     const u_int32_t* ptr = data;
-    for (char c = 0; c < DAQ_CHANNELS; ++c)
+    for (unsigned char daq = 0; daq < DAQ_CHANNELS; ++daq)
     {
-        size_t size = apvSize(ptr, c);
+        size_t size = apvSize(ptr, daq);
         ptr += SRS_HEADER_SIZE;
         ADCiterator begin(ptr);
         ADCiterator end = begin + size;
-        writeToImage(begin, end, c%2==0?0:APV_CHANNELS, c<2?img.proj.x:img.proj.y);
+        writeToImage(begin, end, imgOffset(daqMap[daq]), img.data[imgNo(daqMap[daq])]);
         ptr += size/2; // since the size is in 16 bit words
     }
     return img;
 }
 
-void FECEvent::addToPedistals (Pedestal* pedestal[DAQ_CHANNELS])
+
+void FECEvent::addToHistogram (Histogram* histogram) const
 {
     const u_int32_t* ptr = data;
-    for (unsigned char c = 0; c < DAQ_CHANNELS; ++c)
+    for (unsigned char daq = 0; daq < DAQ_CHANNELS; ++daq)
     {
-        size_t size = apvSize(ptr, c);
+        size_t size = apvSize(ptr, daq);
         ptr += SRS_HEADER_SIZE;
         ADCiterator begin(ptr);
         ADCiterator end = begin + size;
         ADCiterator it = findData(begin, end);
-        pedestal[c]->add(it);
+
+        for (size_t tb = 0; tb < APV_TIME_BINS; ++tb)
+        {
+            for (size_t c = 0; c < APV_CHANNELS; ++c)
+            {
+                uint16_t v = (APV_MAX_VALUE - (*it++));
+                histogram->inc(daqMap[daq]*APV_CHANNELS+apvChannelNo(c),v);
+            }
+            it += APV_HEADER_BITS;
+        }
+
         ptr += size/2; // since the size is in 16 bit words
     }
 

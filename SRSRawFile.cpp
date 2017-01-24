@@ -5,9 +5,11 @@
 #include <iostream>
 #include "SRSRawFile.h"
 
-SRSRawFile::SRSRawFile(std::string fileName)
+SRSRawFile::SRSRawFile(std::string fileName, const std::vector<size_t >& _daqMap)
         : buffer(NULL)
         , bufferSize(0)
+        , daqMap(_daqMap)
+        , events(0)
 {
     file.exceptions(std::ifstream::failbit | std::ifstream::badbit | std::ifstream::eofbit);
     file.open(fileName, std::ios::in|std::ios::binary);
@@ -16,9 +18,13 @@ SRSRawFile::SRSRawFile(std::string fileName)
 SRSRawFile::~SRSRawFile ()
 {
     delete[] buffer;
+    if (verbose)
+    {
+        std::cout << "SRSRawFile: read " << events << " events." << std::endl;
+    }
 }
 
-FECEvent SRSRawFile::getNextFECEvent()
+FECEvent SRSRawFile::nextFECEvent ()
 {
     eventHeaderStruct eventHeader;
     while (true)
@@ -36,5 +42,6 @@ FECEvent SRSRawFile::getNextFECEvent()
     }
 
     file.read(buffer,eventSize);
-    return FECEvent(buffer,eventSize);
+    ++events;
+    return FECEvent(buffer,eventSize, daqMap);
 }

@@ -49,5 +49,4 @@ public:
 
 };
 
-
 #endif //VMMEF_ADCITERATOR_H

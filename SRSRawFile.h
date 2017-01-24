@@ -18,11 +18,13 @@ private:
     std::ifstream file;
     char* buffer;
     size_t bufferSize;
+    const std::vector<size_t >& daqMap;
+    long events;
 public:
-    SRSRawFile(std::string fileName);
+    SRSRawFile(std::string fileName, const std::vector<size_t >& daqMap);
     ~SRSRawFile ();
     SRSRawFile (char *buffer);
-    FECEvent getNextFECEvent();
+    FECEvent nextFECEvent ();
 };
 
 
