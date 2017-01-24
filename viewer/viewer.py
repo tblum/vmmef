@@ -43,6 +43,7 @@ class Display:
     ped = None
     zero = False
     surface = False
+    log = False
     
     def __init__(self, h5file):
         self.figure, self.axes = plt.subplots(2)
@@ -56,19 +57,24 @@ class Display:
     def showEvent(self, i=None):
         if i is None:
             i = self.evno
-        event = h5file.readEvent(i).astype(np.int16)
+        event = h5file.readEvent(i).astype(np.float32)
         if not self.ped is None:
             event -= self.ped[:,None,:]
         if self.zero:
             event *= event > 0
+        if self.log:
+            event = np.log(event+1)
             
         self.figure.canvas.set_window_title(str(i).zfill(7))
         min = np.min(event)
         max = np.max(event)
         for a in range(len(self.axes)):
             self.axes[a].cla()
-        self.axes[0].title.set_text('X')
-        self.axes[1].title.set_text('Y')
+        ex = np.sum(event[0])
+        ey = np.sum(event[1])
+        e = ex + ey
+        self.axes[0].title.set_text('X ' + "{:4.1f}%".format(ex/e*100.0))
+        self.axes[1].title.set_text('Y ' + "{:4.1f}%".format(ey/e*100.0))
         im = self.axes[0].imshow(event[0], aspect='auto', clim=(min,max))
         im = self.axes[1].imshow(event[1], aspect='auto', clim=(min,max))
         plt.colorbar(im, cax=self.axes[2])
@@ -94,6 +100,9 @@ class Display:
         if event.key == 'z':
             self.zero = not self.zero
             self.showEvent()
+        if event.key == 'l':
+            self.log = not self.log
+            self.showEvent()
         if event.key == '+':
             self.ped += 1
             self.showEvent()
@@ -102,6 +111,8 @@ class Display:
             self.showEvent()
         
 if __name__ == '__main__':
+    plt.rcParams['keymap.xscale'] = ''
+    plt.rcParams['keymap.yscale'] = ''
     h5file = H5file(sys.argv[1])
     h5file.readPedestal()
     display = Display(h5file)
