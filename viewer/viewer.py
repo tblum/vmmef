@@ -45,6 +45,7 @@ class Display:
     surface = False
     log = False
     peak = False
+    cor = 0
     
     def __init__(self, h5file):
         self.figure, self.axes = plt.subplots(2)
@@ -52,8 +53,6 @@ class Display:
         self.axes = np.append(self.axes,[plt.axes([0.85, 0.1, 0.075, 0.8])])
         self.figure.canvas.mpl_connect('key_press_event', self.keyEvent)
         self.h5file = h5file
-        self.ped = self.h5file.pedestal['cut'].copy()
-        self.zero = True
         self.showEvent(0)
         plt.show()
         
@@ -61,8 +60,18 @@ class Display:
         if i is None:
             i = self.evno
         event = h5file.readEvent(i).astype(np.float32)
+
+        if self.peak:
+            shape = np.array(event.shape)
+            shape[1] += 2
+            eb = np.empty(shape)
+            eb[:,1:-1,:] = event
+            eb[:,0,:] = 0 if self.ped is None else self.h5file.pedestal[self.ped]
+            eb[:,-1,:] = 0 if self.ped is None else self.h5file.pedestal[self.ped]
+            event = eb
+
         if not self.ped is None:
-            event -= self.ped[:,None,:]
+            event -= self.h5file.pedestal[self.ped][:,None,:] + self.cor
         if self.zero:
             event *= event > 0
         if self.log:
@@ -71,14 +80,8 @@ class Display:
         self.figure.canvas.set_window_title(str(i).zfill(7))
 
         if self.peak:
+            event = (event[:,1:-1,:] > event[:,0:-2,:]) & (event[:,1:-1,:] >= event[:,2:,:])
             plt.rcParams['image.cmap'] = 'gray'
-            shape = np.array(event.shape)
-            shape[1] += 2
-            eb = np.empty(shape)
-            eb[:,1:-1,:] = event
-            eb[:,0,:] = eb[:,1,:]
-            eb[:,-1,:] = eb[:,-2,:]
-            event = (eb[:,1:-1,:] > eb[:,0:-2,:]) & (eb[:,1:-1,:] >= eb[:,2:,:])
         else:
             plt.rcParams['image.cmap'] = 'jet'
 
@@ -91,24 +94,39 @@ class Display:
         e = ex + ey
         self.axes[0].title.set_text('X ' + "{:4.1f}%".format(ex/e*100.0))
         self.axes[1].title.set_text('Y ' + "{:4.1f}%".format(ey/e*100.0))
-        im = self.axes[0].imshow(event[0], aspect='auto', clim=(min,max))
-        im = self.axes[1].imshow(event[1], aspect='auto', clim=(min,max))
+        self.axes[2].title.set_text(('none' if self.ped is None else self.ped) + ' + ' +
+                                    str(self.cor) + ("\nzero" if self.zero else ""))
+        im = self.axes[0].imshow(event[0], interpolation='none', aspect='auto', clim=(min,max))
+        im = self.axes[1].imshow(event[1], interpolation='none', aspect='auto', clim=(min,max))
         plt.colorbar(im, cax=self.axes[2])
         plt.draw()
 
     def keyEvent(self, event):
-        sys.stdout.flush()
+#        print (event.key)
+#        sys.stdout.flush()
         if event.key == 'right':
             self.evno += 1
             self.showEvent()
         if event.key == 'left':
             self.evno -= 1
             self.showEvent()
+        if event.key == 'up':
+            self.evno += 100
+            self.showEvent()
+        if event.key == 'down':
+            self.evno -= 100
+            self.showEvent()
+        if event.key == 'pageup':
+            self.evno += 10000
+            self.showEvent()
+        if event.key == 'pagedown':
+            self.evno -= 10000
+            self.showEvent()
         if event.key == 'c':
-            self.ped = self.h5file.pedestal['cut'].copy()
+            self.ped = 'cut'
             self.showEvent()
         if event.key == 'a':
-            self.ped = self.h5file.pedestal['avg'].copy()
+            self.ped = 'avg'
             self.showEvent()
         if event.key == 'n':
             self.ped = None
@@ -123,11 +141,15 @@ class Display:
             self.peak = not self.peak
             self.showEvent()
         if event.key == '+':
-            self.ped += 1
+            self.cor += 1
             self.showEvent()
         if event.key == '-':
-            self.ped -= 1
+            self.cor -= 1
             self.showEvent()
+        if event.key == '0':
+            self.cor = 0
+            self.showEvent()
+
         
 if __name__ == '__main__':
     plt.rcParams['keymap.xscale'] = ''
