@@ -50,7 +50,7 @@ class Display:
     def __init__(self, h5file):
         self.figure, self.axes = plt.subplots(2)
         plt.subplots_adjust(bottom=0.1, right=0.8, top=0.9)
-        self.axes = np.append(self.axes,[plt.axes([0.85, 0.1, 0.075, 0.8])])
+        self.axes = np.append(self.axes,[plt.axes([0.85, 0.1, 0.075, 0.7])])
         self.figure.canvas.mpl_connect('key_press_event', self.keyEvent)
         self.h5file = h5file
         self.showEvent(0)
@@ -95,7 +95,8 @@ class Display:
         self.axes[0].title.set_text('X ' + "{:4.1f}%".format(ex/e*100.0))
         self.axes[1].title.set_text('Y ' + "{:4.1f}%".format(ey/e*100.0))
         self.axes[2].title.set_text(('none' if self.ped is None else self.ped) + ' + ' +
-                                    str(self.cor) + ("\nzero" if self.zero else ""))
+                                    str(self.cor) + ("\nzero" if self.zero else "") +
+                                    ("\nlog" if self.log else ""))
         im = self.axes[0].imshow(event[0], interpolation='none', aspect='auto', clim=(min,max))
         im = self.axes[1].imshow(event[1], interpolation='none', aspect='auto', clim=(min,max))
         plt.colorbar(im, cax=self.axes[2])
