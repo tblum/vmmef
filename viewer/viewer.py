@@ -55,20 +55,23 @@ class Display:
         self.h5file = h5file
         self.showEvent(0)
         plt.show()
-        
+
+    def addBorder(self, event):
+        shape = np.array(event.shape)
+        shape[1] += 2
+        eb = np.empty(shape)
+        eb[:,1:-1,:] = event
+        eb[:,0,:] = self.h5file.pedestal['avg']
+        eb[:,-1,:] = self.h5file.pedestal['avg']
+        return eb
+
     def showEvent(self, i=None):
         if i is None:
             i = self.evno
         event = h5file.readEvent(i).astype(np.float32)
 
         if self.peak:
-            shape = np.array(event.shape)
-            shape[1] += 2
-            eb = np.empty(shape)
-            eb[:,1:-1,:] = event
-            eb[:,0,:] = 0 if self.ped is None else self.h5file.pedestal[self.ped]
-            eb[:,-1,:] = 0 if self.ped is None else self.h5file.pedestal[self.ped]
-            event = eb
+            event = self.addBorder(event)
 
         if not self.ped is None:
             event -= self.h5file.pedestal[self.ped][:,None,:] + self.cor
