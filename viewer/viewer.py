@@ -46,6 +46,8 @@ class Display:
     log = False
     peak = False
     cor = 0
+    diff = 0
+    smooth = False
     
     def __init__(self, h5file):
         self.figure, self.axes = plt.subplots(2)
@@ -70,17 +72,22 @@ class Display:
             i = self.evno
         event = h5file.readEvent(i).astype(np.float32)
 
-        if self.peak:
+        if self.peak or self.smooth or self.diff > 0:
             event = self.addBorder(event)
 
         if not self.ped is None:
             event -= self.h5file.pedestal[self.ped][:,None,:] + self.cor
-        if self.zero:
-            event *= event > 0
         if self.log:
             event = np.log(event+1)
+
+        if self.smooth:
+            event[:,1:-1,:] = event[:,1:-1,:]*0.5 + event[:,0:-2,:]*0.25 + event[:,2:,:]*0.25
             
-        self.figure.canvas.set_window_title(str(i).zfill(7))
+        for d in range(self.diff):
+            event = event[:,1:,:] - event[:,:-1,:] 
+        
+        if self.zero:
+            event *= event > 0
 
         if self.peak:
             event = (event[:,1:-1,:] > event[:,0:-2,:]) & (event[:,1:-1,:] >= event[:,2:,:])
@@ -95,11 +102,15 @@ class Display:
         ex = np.sum(event[0])
         ey = np.sum(event[1])
         e = ex + ey
+        self.figure.canvas.set_window_title(str(i).zfill(7))
         self.axes[0].title.set_text('X ' + "{:4.1f}%".format(ex/e*100.0))
         self.axes[1].title.set_text('Y ' + "{:4.1f}%".format(ey/e*100.0))
         self.axes[2].title.set_text(('none' if self.ped is None else self.ped) + ' + ' +
                                     str(self.cor) + ("\nzero" if self.zero else "") +
-                                    ("\nlog" if self.log else ""))
+                                    ("\nlog" if self.log else "") +
+                                    ("\nsmooth" if self.smooth else "") +
+                                    (("\ndiff " + str(self.diff)) if self.diff else "") 
+        )
         im = self.axes[0].imshow(event[0], interpolation='none', aspect='auto', clim=(min,max))
         im = self.axes[1].imshow(event[1], interpolation='none', aspect='auto', clim=(min,max))
         plt.colorbar(im, cax=self.axes[2])
@@ -144,6 +155,15 @@ class Display:
         if event.key == 'p':
             self.peak = not self.peak
             self.showEvent()
+        if event.key == 's':
+            self.smooth = not self.smooth
+            self.showEvent()
+        if event.key == 'd':
+            self.diff += 1
+            self.showEvent()
+        if event.key == 'D':
+            self.diff = 0
+            self.showEvent()
         if event.key == '+':
             self.cor += 1
             self.showEvent()
@@ -159,6 +179,7 @@ if __name__ == '__main__':
     plt.rcParams['keymap.xscale'] = ''
     plt.rcParams['keymap.yscale'] = ''
     plt.rcParams['keymap.pan'] = ''
+    plt.rcParams['keymap.save'] = ''
     
     h5file = H5file(sys.argv[1])
     h5file.readPedestal()
