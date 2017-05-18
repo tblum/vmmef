@@ -37,7 +37,7 @@ public:
     {return findCutoff(channel(strip_id), o, n, v);}
     double average(size_t strip_id) const;
     friend void FECEvent::addToHistogram (Histogram *histogram) const;
-    friend void HDF5File::addPedestal(Pedestal* pedestal, Histogram *histogram);
+    friend void HDF5File::addAggregate(Pedestal* pedestal, Histogram *histogram, std::string name);
 };
 
 

@@ -12,25 +12,33 @@
 
 
 HDF5File::HDF5File (std::string fileName)
-        : pedestal(NULL)
-        , events(0)
+        : events(0)
 {
     file = new H5::H5File(fileName, H5F_ACC_TRUNC);
-    imagegroup = file->createGroup("/images");
-
+    imageGroup = file->createGroup("/images");
 }
 
-HDF5File::~HDF5File ()
-{
-    file->close();
-}
+    HDF5File::~HDF5File ()
+    {
+        try
+        {
+            H5::Attribute nevents = imageGroup.createAttribute("nevents",H5::PredType::NATIVE_UINT, H5::DataSpace(H5S_SCALAR));
+            nevents.write(H5::PredType::NATIVE_UINT,&events);
+            nevents.close();
+        }
+        catch(H5::Exception e)
+        {
+            std::cerr << e.getDetailMsg() << std::endl;
+            throw e;
+        }
+        file->close();
+    }
 
-void HDF5File::addPedestal (Pedestal *pedestal_, Histogram *histogram)
+void HDF5File::addAggregate (Pedestal *pedestal, Histogram *histogram, std::string name)
 {
-    pedestal = pedestal_;
     try
     {
-        H5::Group pedgroup(file->createGroup( "/pedestal"));
+        H5::Group pedgroup(file->createGroup(name));
         if (histogram)
         {
             const hsize_t dims[2] = {DAQ_CHANNELS*APV_CHANNELS, APV_MAX_VALUE};
@@ -40,14 +48,17 @@ void HDF5File::addPedestal (Pedestal *pedestal_, Histogram *histogram)
             H5::DataSet dataset = pedgroup.createDataSet("histogram", datatype, dataspace );
             dataset.write(histogram->data, H5::PredType::NATIVE_UINT);
         }
-        const hsize_t dims[2] = {2, IMG_WIDTH};
-        H5::DataSpace dataspace( 2,  dims);
-        H5::IntType datatype( H5::PredType::NATIVE_UINT16 );
-        datatype.setOrder( H5T_ORDER_LE );
-        H5::DataSet dataset_avg = pedgroup.createDataSet("average", datatype, dataspace );
-        dataset_avg.write(pedestal->avg, H5::PredType::NATIVE_UINT16);
-        H5::DataSet dataset_cut = pedgroup.createDataSet("cut-off", datatype, dataspace );
-        dataset_cut.write(pedestal->cut, H5::PredType::NATIVE_UINT16);
+        if (pedestal)
+        {
+            const hsize_t dims[2] = {2, IMG_WIDTH};
+            H5::DataSpace dataspace(2, dims);
+            H5::IntType datatype(H5::PredType::NATIVE_UINT16);
+            datatype.setOrder(H5T_ORDER_LE);
+            H5::DataSet dataset_avg = pedgroup.createDataSet("average", datatype, dataspace);
+            dataset_avg.write(pedestal->avg, H5::PredType::NATIVE_UINT16);
+            H5::DataSet dataset_cut = pedgroup.createDataSet("cut-off", datatype, dataspace);
+            dataset_cut.write(pedestal->cut, H5::PredType::NATIVE_UINT16);
+        }
 
     }
     catch(H5::Exception e)
@@ -61,10 +72,8 @@ void HDF5File::addPedestal (Pedestal *pedestal_, Histogram *histogram)
 void HDF5File::addEvent(const FECEvent& event)
 {
     EventImage image = event.generateImage();
-    //if (pedestal)
-    //    image.applyPedestal(pedestal);
     std::stringstream evs;
-    evs << std::setw(7) << std::setfill('0') << events++;
+    evs << std::setw(6) << std::setfill('0') << events++;
     try
     {
         const hsize_t dims[3] = {2, IMG_HEIGHT, IMG_WIDTH};
@@ -72,7 +81,7 @@ void HDF5File::addEvent(const FECEvent& event)
         H5::IntType datatype( H5::PredType::NATIVE_UINT16 );
         datatype.setOrder( H5T_ORDER_LE );
 
-        H5::DataSet dataset = imagegroup.createDataSet(evs.str(), datatype, dataspace );
+        H5::DataSet dataset = imageGroup.createDataSet(evs.str(), datatype, dataspace );
         dataset.write(image.images(), H5::PredType::NATIVE_UINT16 );
     }
     catch(H5::Exception e)

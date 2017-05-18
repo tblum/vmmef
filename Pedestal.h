@@ -20,7 +20,7 @@ private:
 public:
     Pedestal(const Histogram& histogram);
     uint16_t cutOff(size_t img, size_t column) const {return cut[img][column];}
-    friend void HDF5File::addPedestal(Pedestal* pedestal, Histogram* histogram);
+    friend void HDF5File::addAggregate(Pedestal* pedestal, Histogram* histogram, std::string name);
 };
 
 

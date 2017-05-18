@@ -36,6 +36,7 @@ int main(int argc, char** argv)
         TCLAP::ValueArg<int> numEvents_("n","nevent","Number of events to read from file",false,-1,"int",cmd);
         TCLAP::ValueArg<int> numPedEvents_("N","nped","Number of events to read from pedestal file",false,-1,"int",cmd);
         TCLAP::ValueArg<std::string> pedFile_("p","pedestal","Name of file containing pedestal data", false,"","filename",cmd);
+        TCLAP::ValueArg<std::string> aggFile_("a","aggregate","Aggregate the data in file in the same manner as the pedestal", false,"","filename",cmd);
         TCLAP::ValueArg<std::string> hdf5File_("o","hdf5","Write output to HDF5 file <filename>", false,"","filename",cmd);
         TCLAP::ValueArg<std::string> x_("x","Xmap","Comma separated list of DAQ indexes mapping to the X projection", false,"1,0","int,int",cmd);
         TCLAP::ValueArg<std::string> y_("y","Ymap","Comma separated list of DAQ indexes mapping to the Y projection", false,"3,2","int,int",cmd);
@@ -45,6 +46,7 @@ int main(int argc, char** argv)
         cmd.parse(argc, argv);
         std::string dataFileName = dataFile_.getValue();
         std::string pedestalFileName = pedFile_.getValue();
+        std::string aggregateFileName = aggFile_.getValue();
         std::string hdf5FileName = hdf5File_.getValue();
         int numEvents = numEvents_.getValue();
         int numPedEvents = numPedEvents_.getValue();
@@ -74,7 +76,16 @@ int main(int argc, char** argv)
             histogram = new Histogram(pedFile, numPedEvents);
             pedestal = new Pedestal(*histogram);
             if (hdf5File)
-                hdf5File->addPedestal(pedestal,histogram);
+                hdf5File->addAggregate(pedestal,histogram, "/pedestal");
+        }
+
+        if (!aggregateFileName.empty())
+        {
+            SRSRawFile aggFile(aggregateFileName,daqMap);
+            histogram = new Histogram(aggFile, numPedEvents);
+            pedestal = new Pedestal(*histogram);
+            if (hdf5File)
+                hdf5File->addAggregate(pedestal,histogram,"/aggregate");
         }
 
         if (!dataFileName.empty())

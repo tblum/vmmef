@@ -15,12 +15,11 @@ class HDF5File
 {
 private:
     H5::H5File* file;
-    Pedestal* pedestal;
     uint events;
-    H5::Group imagegroup;
+    H5::Group imageGroup;
 public:
     HDF5File(std::string fileName);
-    void addPedestal(Pedestal* pedestal, Histogram *histogram=NULL);
+    void addAggregate(Pedestal* pedestal, Histogram *histogram, std::string name);
     void addEvent(const FECEvent& event);
     void addEvents(SRSRawFile& file, int n);
     ~HDF5File ();
